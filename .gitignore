@@ -1,0 +1,23 @@
+# Dependências
+/vendor/
+
+# Arquivos de ambiente e configuração local
+.env
+.env.local
+.env.*.local
+
+# IDEs e Editores (VS Code, PhpStorm, etc.)
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
+
+# Logs e arquivos temporários
+/logs/
+*.log
+tmp/
+cache/
