@@ -27,6 +27,19 @@ class Response
     }
 
     /**
+     * Factory method for XML responses.
+     */
+    public static function xml(string|array $data, int $status = HttpStatus::OK, array $headers = []): self
+    {
+        $headers['Content-Type'] = 'application/xml; charset=UTF-8';
+
+        // Se passares um array, podes convertê-lo ou aceitar uma string XML pronta
+        $xmlBody = is_array($data) ? self::arrayToXml($data, new \SimpleXMLElement('<response/>'))->asXML() : $data;
+
+        return new self($xmlBody, $status, $headers);
+    }
+
+    /**
      * Factory method for plain text or HTML responses.
      */
     public static function make(mixed $body, int $status = HttpStatus::OK, array $headers = []): self
@@ -59,26 +72,23 @@ class Response
     }
 
     /**
-     * Returns the response body.
+     * Helper to recursively convert arrays to SimpleXMLElement.
      */
-    public function getBody(): mixed
+    private static function arrayToXml(array $data, \SimpleXMLElement $xml): \SimpleXMLElement
     {
-        return $this->body;
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $subnode = $xml->addChild(is_numeric($key) ? 'item' : $key);
+                self::arrayToXml($value, $subnode);
+            } else {
+                $xml->addChild(is_numeric($key) ? 'item' : $key, htmlspecialchars((string) $value));
+            }
+        }
+        return $xml;
     }
 
-    /**
-     * Returns the HTTP status code.
-     */
-    public function getStatus(): int
-    {
-        return $this->status;
-    }
-
-    /**
-     * Returns the headers array.
-     */
-    public function getHeaders(): array
-    {
-        return $this->headers;
-    }
+    // Getters...
+    public function getBody(): mixed { return $this->body; }
+    public function getStatus(): int { return $this->status; }
+    public function getHeaders(): array { return $this->headers; }
 }
