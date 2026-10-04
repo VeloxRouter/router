@@ -1,0 +1,20 @@
+{
+    "name": "veloxrouter/router",
+    "description": "Lightning-fast HTTP routing engine for PHP",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "VeloxRouter\\Router\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "VeloxRouter"
+        }
+    ],
+    "minimum-stability": "stable"
+}
