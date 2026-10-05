@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace VeloxRouter\Router\Http;
+namespace VeloxRouter\Http;
 
 class Request
 {
@@ -33,7 +33,6 @@ class Request
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
         $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
         
-        // Parse JSON body if applicable, fallback to $_POST
         $parsedBody = [];
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
         
@@ -44,7 +43,6 @@ class Request
             $parsedBody = $_POST;
         }
 
-        // Fetch headers safely
         $headers = function_exists('getallheaders') ? getallheaders() : self::extractHeadersFromServer($_SERVER);
 
         return new self(
@@ -58,7 +56,7 @@ class Request
     }
 
     /**
-     * Fallback method to extract headers if getallheaders() is unavailable (e.g. CLI or specific SAPIs).
+     * Fallback method to extract headers if getallheaders() is unavailable.
      */
     private static function extractHeadersFromServer(array $server): array
     {
@@ -72,44 +70,70 @@ class Request
         return $headers;
     }
 
-    // --- Getters & Attribute Management ---
+    // --- Fiber-Inspired API Methods ---
 
-    public function getMethod(): string
+    public function method(): string
     {
         return $this->method;
     }
 
-    public function getUri(): string
+    public function uri(): string
     {
         return $this->uri;
     }
 
-    public function getQueryParams(): array
+    /**
+     * Get query parameters.
+     * If $key is null, returns all query parameters.
+     */
+    public function query(?string $key = null, mixed $default = null): mixed
     {
-        return $this->queryParams;
-    }
-
-    public function getQuery(string $key, mixed $default = null): mixed
-    {
+        if ($key === null) {
+            return $this->queryParams;
+        }
         return $this->queryParams[$key] ?? $default;
     }
 
-    public function getParsedBody(): array
+    /**
+     * Get parsed request body (JSON or form data).
+     * If $key is null, returns the entire body array.
+     */
+    public function body(?string $key = null, mixed $default = null): mixed
     {
-        return $this->parsedBody;
-    }
-
-    public function getBodyParam(string $key, mixed $default = null): mixed
-    {
+        if ($key === null) {
+            return $this->parsedBody;
+        }
         return $this->parsedBody[$key] ?? $default;
     }
 
-    public function getHeaders(): array
+    /**
+     * Get raw form data ($_POST explicitly).
+     * If $key is null, returns all POST data.
+     */
+    public function form(?string $key = null, mixed $default = null): mixed
     {
-        return $this->headers;
+        if ($key === null) {
+            return $_POST;
+        }
+        return $_POST[$key] ?? $default;
     }
 
-    public function getHeader(string $name): ?string
+    /**
+     * Get route parameters (e.g., /user/{id} -> param('id')).
+     * If $key is null, returns all attributes/params.
+     */
+    public function param(?string $key = null, mixed $default = null): mixed
+    {
+        if ($key === null) {
+            return $this->attributes;
+        }
+        return $this->attributes[$key] ?? $default;
+    }
+
+    /**
+     * Get a specific header value.
+     */
+    public function header(string $name): ?string
     {
         foreach ($this->headers as $key => $value) {
             if (strcasecmp($key, $name) === 0) {
@@ -119,29 +143,24 @@ class Request
         return null;
     }
 
-    public function getServer(string $key, mixed $default = null): mixed
+    /**
+     * Get all headers.
+     */
+    public function headers(): array
+    {
+        return $this->headers;
+    }
+
+    /**
+     * Get server parameters.
+     */
+    public function server(string $key, mixed $default = null): mixed
     {
         return $this->server[$key] ?? $default;
     }
 
     /**
-     * Get all route or middleware attributes.
-     */
-    public function getAttributes(): array
-    {
-        return $this->attributes;
-    }
-
-    /**
-     * Get a specific attribute.
-     */
-    public function getAttribute(string $key, mixed $default = null): mixed
-    {
-        return $this->attributes[$key] ?? $default;
-    }
-
-    /**
-     * Set a custom attribute (useful for routers injecting path parameters or middleware data).
+     * Set a custom attribute (used by the router to inject path parameters).
      */
     public function setAttribute(string $key, mixed $value): void
     {
