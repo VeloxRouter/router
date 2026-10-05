@@ -85,8 +85,9 @@ class Router
         $request = $request ?? Request::capture();
         $response = $response ?? new Response();
         
-        $method = $request->getMethod();
-        $uri = $request->getUri();
+        // CORRIGIDO: Usando method() e uri() conforme definido no Request
+        $method = $request->method();
+        $uri = $request->uri();
 
         $uri = '/' . trim($uri, '/');
         if ($uri === '/') {
