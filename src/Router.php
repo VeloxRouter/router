@@ -19,6 +19,28 @@ class Router
     protected array $globalMiddleware = [];
 
     /**
+     * Run the application.
+     * In development mode, it can spin up PHP's built-in development server.
+     * In production (Apache/Nginx + PHP-FPM), it dispatches the incoming HTTP request.
+     */
+    public function run(string $host = 'localhost', int $port = 8000): void
+    {
+        // If running from the CLI, start PHP's built-in development server for local testing
+        if (PHP_SAPI === 'cli' && isset($_SERVER['argv'][0])) {
+            $serverAddress = "{$host}:{$port}";
+            echo "VeloxRouter running at http://{$serverAddress}\n";
+            echo "Press Ctrl+C to quit.\n\n";
+            
+            // Spin up the internal PHP server pointing to the current directory
+            passthru(sprintf('php -S %s', $serverAddress));
+            return;
+        }
+
+        // In a traditional web server environment, dispatch the request through the router
+        $this->dispatch();
+    }
+
+    /**
      * Register a GET route.
      */
     public function get(string $uri, callable|string $handler, array $middleware = []): self
@@ -85,7 +107,6 @@ class Router
         $request = $request ?? Request::capture();
         $response = $response ?? new Response();
         
-        // CORRIGIDO: Usando method() e uri() conforme definido no Request
         $method = $request->method();
         $uri = $request->uri();
 
