@@ -7,68 +7,154 @@ namespace VeloxRouter\Router\Http;
 class Response
 {
     /**
-     * @param mixed $body The response body (string, array, object)
+     * @param mixed $body The response body (string, array, object, or callback for streams)
      * @param int $status The HTTP status code
      * @param array<string, string> $headers Additional HTTP headers
      */
     public function __construct(
         protected mixed $body = '',
-        protected int $status = HttpStatus::OK,
+        protected int $status = 200,
         protected array $headers = []
     ) {}
 
     /**
-     * Factory method for JSON responses.
+     * Set the HTTP status code fluently.
      */
-    public static function json(mixed $data, int $status = HttpStatus::OK, array $headers = []): self
+    public function status(int $status): self
     {
-        $headers['Content-Type'] = 'application/json; charset=UTF-8';
-        return new self(json_encode($data), $status, $headers);
+        $this->status = $status;
+        return $this;
     }
 
     /**
-     * Factory method for XML responses.
+     * Set or override a header fluently.
      */
-    public static function xml(string|array $data, int $status = HttpStatus::OK, array $headers = []): self
+    public function header(string $name, string $value): self
     {
-        $headers['Content-Type'] = 'application/xml; charset=UTF-8';
-
-        // Se passares um array, podes convertê-lo ou aceitar uma string XML pronta
-        $xmlBody = is_array($data) ? self::arrayToXml($data, new \SimpleXMLElement('<response/>'))->asXML() : $data;
-
-        return new self($xmlBody, $status, $headers);
+        $this->headers[$name] = $value;
+        return $this;
     }
 
     /**
-     * Factory method for plain text or HTML responses.
+     * Set a JSON response body.
      */
-    public static function make(mixed $body, int $status = HttpStatus::OK, array $headers = []): self
+    public function json(mixed $data, ?int $status = null): self
     {
-        return new self($body, $status, $headers);
+        if ($status !== null) {
+            $this->status = $status;
+        }
+
+        $this->headers['Content-Type'] = 'application/json; charset=UTF-8';
+        $this->body = json_encode($data);
+        
+        return $this;
     }
 
     /**
-     * Adds or overrides a header in an immutable way.
+     * Set a plain text response body.
      */
-    public function withHeader(string $name, string $value): self
+    public function text(string $body, ?int $status = null): self
     {
-        $clone = clone $this;
-        $clone->headers[$name] = $value;
-        return $clone;
+        if ($status !== null) {
+            $this->status = $status;
+        }
+
+        $this->headers['Content-Type'] = 'text/plain; charset=UTF-8';
+        $this->body = $body;
+
+        return $this;
     }
 
     /**
-     * Sends the response to the client (status code, headers, and body).
+     * Set an HTML response body.
+     */
+    public function html(string $html, ?int $status = null): self
+    {
+        if ($status !== null) {
+            $this->status = $status;
+        }
+
+        $this->headers['Content-Type'] = 'text/html; charset=UTF-8';
+        $this->body = $html;
+
+        return $this;
+    }
+
+    /**
+     * Set an XML response body.
+     */
+    public function xml(string|array $data, ?int $status = null): self
+    {
+        if ($status !== null) {
+            $this->status = $status;
+        }
+
+        $this->headers['Content-Type'] = 'application/xml; charset=UTF-8';
+        $this->body = is_array($data) 
+            ? self::arrayToXml($data, new \SimpleXMLElement('<response/>'))->asXML() 
+            : $data;
+
+        return $this;
+    }
+
+    /**
+     * Send a file as a download or inline response (Fiber-inspired SendFile).
+     */
+    public function sendFile(string $path, ?string $filename = null): self
+    {
+        if (!file_exists($path)) {
+            $this->status = 404;
+            $this->body = 'File not found';
+            return $this;
+        }
+
+        $filename = $filename ?? basename($path);
+        $mimeType = mime_content_type($path) ?: 'application/octet-stream';
+
+        $this->headers['Content-Type'] = $mimeType;
+        $this->headers['Content-Disposition'] = 'attachment; filename="' . $filename . '"';
+        $this->headers['Content-Length'] = (string) filesize($path);
+
+        $this->body = file_get_contents($path);
+
+        return $this;
+    }
+
+    /**
+     * Stream data using a callback function (Fiber-inspired SendStream).
+     */
+    public function sendStream(callable $callback, int $status = 200, array $headers = []): self
+    {
+        $this->status = $status;
+        foreach ($headers as $key => $value) {
+            $this->headers[$key] = $value;
+        }
+        
+        // Armazena o callback para ser executado no momento do send()
+        $this->body = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Sends the response to the client (status code, headers, and body/stream).
      */
     public function send(): void
     {
-        HttpStatus::send($this->status);
+        if (!headers_sent()) {
+            http_response_code($this->status);
 
-        foreach ($this->headers as $name => $value) {
-            header("{$name}: {$value}");
+            foreach ($this->headers as $name => $value) {
+                header("{$name}: {$value}");
+            }
         }
 
-        echo $this->body;
+        if (is_callable($this->body)) {
+            // Executa o stream se o corpo for um callable
+            ($this->body)();
+        } else {
+            echo $this->body;
+        }
     }
 
     /**
@@ -87,7 +173,7 @@ class Response
         return $xml;
     }
 
-    // Getters...
+    // Getters básicos
     public function getBody(): mixed { return $this->body; }
     public function getStatus(): int { return $this->status; }
     public function getHeaders(): array { return $this->headers; }
