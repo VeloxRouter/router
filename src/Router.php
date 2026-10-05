@@ -80,9 +80,11 @@ class Router
     /**
      * Dispatch the incoming request through the router and pipelines.
      */
-    public function dispatch(?Request $request = null): void
+    public function dispatch(?Request $request = null, ?Response $response = null): void
     {
         $request = $request ?? Request::capture();
+        $response = $response ?? new Response();
+        
         $method = $request->getMethod();
         $uri = $request->getUri();
 
@@ -94,7 +96,7 @@ class Router
         [$handler, $routeMiddleware, $params] = $this->matchRoute($method, $uri);
 
         if (!$handler) {
-            Response::json(['error' => 'Route not found'], HttpStatus::NOT_FOUND)->send();
+            $response->status(HttpStatus::NOT_FOUND)->json(['error' => 'Route not found'])->send();
             return;
         }
 
@@ -110,17 +112,20 @@ class Router
         $allMiddleware = array_merge($this->globalMiddleware, $routeMiddleware);
 
         try {
-            $response = (new Pipeline())
-                ->send($request)
+            // Pass both Request and Response through the Pipeline (Onion pattern)
+            $result = (new Pipeline())
+                ->send([$request, $response])
                 ->through($allMiddleware)
-                ->then($handler);
+                ->then(function ($req, $res) use ($handler) {
+                    return $handler($req, $res);
+                });
 
-            $this->handleResponse($response);
+            $this->handleResponse($result, $response);
         } catch (\Throwable $e) {
-            Response::json([
+            $response->status(HttpStatus::INTERNAL_SERVER_ERROR)->json([
                 'error' => 'Internal Server Error',
                 'message' => $e->getMessage()
-            ], HttpStatus::INTERNAL_SERVER_ERROR)->send();
+            ])->send();
         }
     }
 
@@ -190,18 +195,29 @@ class Router
     /**
      * Handle the response returned by the pipeline/handler.
      */
-    protected function handleResponse(mixed $response): void
+    protected function handleResponse(mixed $result, Response $response): void
     {
-        if ($response instanceof Response) {
+        // If the handler explicitly returned a Response instance, send it
+        if ($result instanceof Response) {
+            $result->send();
+            return;
+        }
+
+        // If the response body was mutated fluently but nothing was explicitly returned, send the injected response
+        if ($result === null && !empty($response->getBody())) {
             $response->send();
             return;
         }
 
-        if (is_array($response) || is_object($response)) {
-            Response::json($response)->send();
+        // If an array or object was returned, treat it as JSON using the instance
+        if (is_array($result) || is_object($result)) {
+            $response->json($result)->send();
             return;
         }
 
-        echo (string) $response;
+        // Otherwise output string directly
+        if ($result !== null) {
+            echo (string) $result;
+        }
     }
 }
