@@ -12,5 +12,5 @@ interface MiddlewareInterface
     /**
      * Process an incoming request and handle or pass it to the next layer.
      */
-    public function handle(Request $request, callable $next): Response|mixed;
+    public function handle(Request $request, Response $response, callable $next): mixed;
 }
