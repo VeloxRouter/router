@@ -18,28 +18,10 @@ class Router
     public function run(string $host = 'localhost', int $port = 8000): void
     {
         if (PHP_SAPI === 'cli') {
-            $serverAddress = "{$host}:{$port}";
+            // Renderiza o banner corporativo de forma limpa e isolada
+            ConsoleBanner::render($host, $port);
             
-            // ANSI Escape Codes for Styling
-            $cyan = "\033[36m";
-            $green = "\033[32m";
-            $bold = "\033[1m";
-            $reset = "\033[0m";
-            $dim = "\033[2m";
-
-            echo "{$cyan}{$bold}";
-            echo " __     __   _           ____             _            \n";
-            echo " \\ \\   / /__| | _____  _|  _ \\ ___  _   _| |_ ___ _ __ \n";
-            echo "  \\ \\ / / _ \\ |/ _ \\ \\/ / |_) / _ \\| | | | __/ _ \\ '__|\n";
-            echo "   \\ V /  __/ | (_) >  <|  _ < (_) | |_| | ||  __/ |   \n";
-            echo "    \\_/ \\___|_|\___/_/\_\_| \\_\___/ \__,_|\__\\___|_|   \n";
-            echo "                             v1.0.0                      \n";
-            echo "{$reset}\n";
-
-            echo " {$green}➜  {$bold}Local:{$reset}   http://{$serverAddress}\n";
-            echo " {$dim}➜  Press {$bold}Ctrl+C{$reset}{$dim} to stop the server{$reset}\n\n";
-            
-            passthru(sprintf('php -S %s', $serverAddress));
+            passthru(sprintf('php -S %s:%d', $host, $port));
             return;
         }
 
@@ -61,9 +43,35 @@ class Router
         return $this->addRoute('PUT', $uri, $handler, $middleware);
     }
 
+    public function patch(string $uri, callable|string $handler, array $middleware = []): self
+    {
+        return $this->addRoute('PATCH', $uri, $handler, $middleware);
+    }
+
     public function delete(string $uri, callable|string $handler, array $middleware = []): self
     {
         return $this->addRoute('DELETE', $uri, $handler, $middleware);
+    }
+
+    public function options(string $uri, callable|string $handler, array $middleware = []): self
+    {
+        return $this->addRoute('OPTIONS', $uri, $handler, $middleware);
+    }
+
+    public function head(string $uri, callable|string $handler, array $middleware = []): self
+    {
+        return $this->addRoute('HEAD', $uri, $handler, $middleware);
+    }
+
+    /**
+     * Register a route that responds to any HTTP method.
+     */
+    public function any(string $uri, callable|string $handler, array $middleware = []): self
+    {
+        foreach (['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'] as $method) {
+            $this->addRoute($method, $uri, $handler, $middleware);
+        }
+        return $this;
     }
 
     /**
@@ -90,7 +98,7 @@ class Router
             $uri = '';
         }
 
-        $this->routes[$method][$uri] = [
+        $this->routes[strtoupper($method)][$uri] = [
             'handler' => $handler,
             'middleware' => $middleware,
         ];
@@ -103,7 +111,7 @@ class Router
         $request = $request ?? Request::capture();
         $response = $response ?? new Response();
         
-        $method = $request->method();
+        $method = strtoupper($request->method());
         $uri = $request->uri();
 
         $uri = '/' . trim($uri, '/');
