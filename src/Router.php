@@ -49,10 +49,21 @@ class Router
         return $this->addRoute('DELETE', $uri, $handler, $middleware);
     }
 
+    /**
+     * Register a global middleware.
+     */
     public function addMiddleware(callable|string $middleware): self
     {
         $this->globalMiddleware[] = $middleware;
         return $this;
+    }
+
+    /**
+     * Alias for addMiddleware for expressive fluent syntax (e.g., $router->use(...)).
+     */
+    public function use(callable|string $middleware): self
+    {
+        return $this->addMiddleware($middleware);
     }
 
     protected function addRoute(string $method, string $uri, callable|string $handler, array $middleware): self
