@@ -17,10 +17,27 @@ class Router
 
     public function run(string $host = 'localhost', int $port = 8000): void
     {
-        if (PHP_SAPI === 'cli' && isset($_SERVER['argv'][0])) {
+        if (PHP_SAPI === 'cli') {
             $serverAddress = "{$host}:{$port}";
-            echo "VeloxRouter running at http://{$serverAddress}\n";
-            echo "Press Ctrl+C to quit.\n\n";
+            
+            // ANSI Escape Codes for Styling
+            $cyan = "\033[36m";
+            $green = "\033[32m";
+            $bold = "\033[1m";
+            $reset = "\033[0m";
+            $dim = "\033[2m";
+
+            echo "{$cyan}{$bold}";
+            echo " __     __   _           ____             _            \n";
+            echo " \\ \\   / /__| | _____  _|  _ \\ ___  _   _| |_ ___ _ __ \n";
+            echo "  \\ \\ / / _ \\ |/ _ \\ \\/ / |_) / _ \\| | | | __/ _ \\ '__|\n";
+            echo "   \\ V /  __/ | (_) >  <|  _ < (_) | |_| | ||  __/ |   \n";
+            echo "    \\_/ \\___|_|\___/_/\_\_| \\_\___/ \__,_|\__\\___|_|   \n";
+            echo "                             v1.0.0                      \n";
+            echo "{$reset}\n";
+
+            echo " {$green}➜  {$bold}Local:{$reset}   http://{$serverAddress}\n";
+            echo " {$dim}➜  Press {$bold}Ctrl+C{$reset}{$dim} to stop the server{$reset}\n\n";
             
             passthru(sprintf('php -S %s', $serverAddress));
             return;
