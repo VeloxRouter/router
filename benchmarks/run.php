@@ -11,7 +11,7 @@ echo "\033[36m\033[1m========================================\033[0m\n";
 echo "\033[1m     VeloxRouter - Benchmark Suite      \033[0m\n";
 echo "\033[36m\033[1m========================================\033[0m\n";
 
-// 1. Configurar um router com várias rotas para simular um ambiente real
+// 1. Configure a router with multiple routes to simulate a real-world environment
 $router = new class extends Router {
     public function runMatch(string $m, string $u) {
         return $this->matchRoute($m, $u);
@@ -28,17 +28,17 @@ $router->post('/users', fn() => 'users.store');
 $router->put('/users/{id}', fn() => 'users.update');
 $router->delete('/users/{id}', fn() => 'users.destroy');
 
-// Benchmark 1: Match de rota estática (lookup direto no array)
+// Benchmark 1: Static route match (direct array key lookup)
 Benchmark::measure('Static Route Match (/users)', function() use ($router) {
     $router->runMatch('GET', '/users');
 }, 50000);
 
-// Benchmark 2: Match de rota dinâmica com parâmetros (avaliação por regex)
+// Benchmark 2: Dynamic route match with parameters (regex evaluation)
 Benchmark::measure('Dynamic Route Match (/users/{id}/posts/{postId})', function() use ($router) {
     $router->runMatch('GET', '/users/123/posts/456');
 }, 20000);
 
-// Benchmark 3: Rota inexistente (testa o comportamento de falha/ciclo completo)
+// Benchmark 3: Not found route match (tests fallback/full cycle behavior)
 Benchmark::measure('Not Found Route Match (404)', function() use ($router) {
     $router->runMatch('GET', '/not-found-route-path');
 }, 20000);
