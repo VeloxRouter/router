@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace VeloxRouter\Router;
+namespace VeloxRouter;
 
-use VeloxRouter\Router\Contracts\Handler;
-use VeloxRouter\Router\Http\Request;
-use VeloxRouter\Router\Http\Response;
-use VeloxRouter\Router\Http\HttpStatus;
-use VeloxRouter\Router\Pipeline\Pipeline;
+use VeloxRouter\Contracts\Handler;
+use VeloxRouter\Http\Request;
+use VeloxRouter\Http\Response;
+use VeloxRouter\Http\HttpStatus;
+use VeloxRouter\Pipeline\Pipeline;
 
 class Dispatcher
 {
@@ -32,7 +32,11 @@ class Dispatcher
             $result = (new Pipeline())
                 ->send([$request, $response])
                 ->through($allMiddleware)
-                ->then(function ($req, $res) use ($handler) {
+                ->then(function ($req, $res) use ($handler, $params) {
+                    // Verifica se existem parâmetros na rota antes de os passar
+                    if (!empty($params)) {
+                        return $handler($req, $res, $params);
+                    }
                     return $handler($req, $res);
                 });
 

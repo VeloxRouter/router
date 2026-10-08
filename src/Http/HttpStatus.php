@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace VeloxRouter\Router\Http;
+namespace VeloxRouter\Http;
 
 class HttpStatus
 {

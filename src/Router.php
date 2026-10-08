@@ -2,26 +2,47 @@
 
 declare(strict_types=1);
 
-namespace VeloxRouter\Router;
+namespace VeloxRouter;
 
-use VeloxRouter\Router\Http\Request;
-use VeloxRouter\Router\Http\Response;
+use VeloxRouter\Http\Request;
+use VeloxRouter\Http\Response;
+use VeloxRouter\Support\ConsoleBanner;
+use InvalidArgumentException;
 
 class Router
 {
-    /** @var array<string, array<string, mixed>> */
-    protected array $routes = [];
+    /** @var array<string, array{static: array, dynamic: array}> */
+    protected array $routes = [
+        'GET' => ['static' => [], 'dynamic' => []],
+        'POST' => ['static' => [], 'dynamic' => []],
+        'PUT' => ['static' => [], 'dynamic' => []],
+        'PATCH' => ['static' => [], 'dynamic' => []],
+        'DELETE' => ['static' => [], 'dynamic' => []],
+        'OPTIONS' => ['static' => [], 'dynamic' => []],
+        'HEAD' => ['static' => [], 'dynamic' => []],
+    ];
 
     /** @var array<int, mixed> */
     protected array $globalMiddleware = [];
 
+    /** @var array<string, string> Map of named routes to their URIs */
+    protected array $namedRoutes = [];
+
+    /** @var string|null Stores the signature or URI of the last registered route for chaining ->name() */
+    protected ?string $lastRegisteredUri = null;
+
+    /** @var string|null Stores the method of the last registered route for chaining ->name() */
+    protected ?string $lastRegisteredMethod = null;
+
     public function run(string $host = 'localhost', int $port = 8000): void
     {
         if (PHP_SAPI === 'cli') {
-            // Renderiza o banner corporativo de forma limpa e isolada
             ConsoleBanner::render($host, $port);
             
-            passthru(sprintf('php -S %s:%d', $host, $port));
+            // Capture the script that triggered run() and use it as the built-in server router script
+            $script = $_SERVER['SCRIPT_FILENAME'];
+            
+            passthru(sprintf('php -S %s:%d %s', $host, $port, escapeshellarg($script)));
             return;
         }
 
@@ -63,9 +84,6 @@ class Router
         return $this->addRoute('HEAD', $uri, $handler, $middleware);
     }
 
-    /**
-     * Register a route that responds to any HTTP method.
-     */
     public function any(string $uri, callable|string $handler, array $middleware = []): self
     {
         foreach (['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'] as $method) {
@@ -74,34 +92,89 @@ class Router
         return $this;
     }
 
-    /**
-     * Register a global middleware.
-     */
     public function addMiddleware(callable|string $middleware): self
     {
         $this->globalMiddleware[] = $middleware;
         return $this;
     }
 
-    /**
-     * Alias for addMiddleware for expressive fluent syntax (e.g., $router->use(...)).
-     */
     public function use(callable|string $middleware): self
     {
         return $this->addMiddleware($middleware);
     }
 
+    /**
+     * Assign a name to the last registered route for reverse routing.
+     */
+    public function name(string $name): self
+    {
+        if ($this->lastRegisteredUri !== null) {
+            $this->namedRoutes[$name] = $this->lastRegisteredUri;
+        }
+        return $this;
+    }
+
+    /**
+     * Generate a URL for a named route with optional parameters.
+     */
+    public function route(string $name, array $params = []): string
+    {
+        if (!isset($this->namedRoutes[$name])) {
+            throw new InvalidArgumentException("Route [{$name}] is not defined.");
+        }
+
+        $uri = $this->namedRoutes[$name];
+
+        // Replace route parameters (supporting both standard {param} and typed {param:regex})
+        foreach ($params as $key => $value) {
+            $uri = preg_replace('/\{' . $key . '(?::[^}]+)?\}/', (string)$value, $uri);
+        }
+
+        return $uri;
+    }
+
     protected function addRoute(string $method, string $uri, callable|string $handler, array $middleware): self
     {
+        // Normalize trailing slashes and URI structure
         $uri = '/' . trim($uri, '/');
         if ($uri === '/') {
             $uri = '';
         }
 
-        $this->routes[strtoupper($method)][$uri] = [
-            'handler' => $handler,
-            'middleware' => $middleware,
-        ];
+        $method = strtoupper($method);
+
+        // Ensure the HTTP method array exists for safety
+        if (!isset($this->routes[$method])) {
+            $this->routes[$method] = ['static' => [], 'dynamic' => []];
+        }
+
+        // Track for named route association
+        $this->lastRegisteredUri = $uri === '' ? '/' : $uri;
+        $this->lastRegisteredMethod = $method;
+
+        // Separate static routes from dynamic routes based on the presence of bracket parameters {}
+        if (str_contains($uri, '{')) {
+            // Support typed route parameters e.g., {id:[0-9]+} or fallback to default [^/]+
+            $pattern = preg_replace('/\{([a-zA-Z0-9_-]+)(?::([^}]+))?\}/', '(?P<$1>$2)', $uri);
+            $pattern = preg_replace('/\{([a-zA-Z0-9_-]+)\}/', '(?P<$1>[^/]+)', $pattern);
+            $pattern = "#^{$pattern}$#";
+
+            // Extract parameter names for matching resolution
+            preg_match_all('/\{([a-zA-Z0-9_-]+)(?::[^}]+)?\}/', $uri, $paramNames);
+            $paramNames = $paramNames[1] ?? [];
+
+            $this->routes[$method]['dynamic'][] = [
+                'pattern' => $pattern,
+                'paramNames' => $paramNames,
+                'handler' => $handler,
+                'middleware' => $middleware,
+            ];
+        } else {
+            $this->routes[$method]['static'][$uri] = [
+                'handler' => $handler,
+                'middleware' => $middleware,
+            ];
+        }
 
         return $this;
     }
@@ -114,6 +187,7 @@ class Router
         $method = strtoupper($request->method());
         $uri = $request->uri();
 
+        // Normalize trailing slashes for lookup consistency
         $uri = '/' . trim($uri, '/');
         if ($uri === '/') {
             $uri = '';
@@ -131,32 +205,34 @@ class Router
             return [null, [], []];
         }
 
-        if (isset($this->routes[$method][$uri])) {
+        // Attempt instantaneous O(1) static route lookup
+        if (isset($this->routes[$method]['static'][$uri])) {
+            $route = $this->routes[$method]['static'][$uri];
             return [
-                $this->routes[$method][$uri]['handler'],
-                $this->routes[$method][$uri]['middleware'],
+                $route['handler'],
+                $route['middleware'],
                 []
             ];
         }
 
-        foreach ($this->routes[$method] as $routeUri => $routeData) {
-            $pattern = preg_replace('/\{([a-zA-Z0-9_-]+)\}/', '([^/]+)', $routeUri);
-            $pattern = "#^{$pattern}$#";
-
-            if (preg_match($pattern, $uri, $matches)) {
+        // If not static, evaluate only registered dynamic routes via regex
+        foreach ($this->routes[$method]['dynamic'] as $route) {
+            if (preg_match($route['pattern'], $uri, $matches)) {
                 array_shift($matches);
 
-                preg_match_all('/\{([a-zA-Z0-9_-]+)\}/', $routeUri, $paramNames);
-                $paramNames = $paramNames[1] ?? [];
-
                 $params = [];
-                foreach ($paramNames as $index => $name) {
-                    $params[$name] = $matches[$index] ?? null;
+                foreach ($route['paramNames'] as $index => $name) {
+                    // Extract named capture groups cleanly
+                    if (is_string($name) && isset($matches[$name])) {
+                        $params[$name] = $matches[$name];
+                    } else {
+                        $params[$name] = $matches[$index] ?? null;
+                    }
                 }
 
                 return [
-                    $routeData['handler'],
-                    $routeData['middleware'],
+                    $route['handler'],
+                    $route['middleware'],
                     $params
                 ];
             }

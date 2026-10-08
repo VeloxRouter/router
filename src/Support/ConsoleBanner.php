@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace VeloxRouter\Router\Support;
+namespace VeloxRouter\Support;
 
 class ConsoleBanner
 {

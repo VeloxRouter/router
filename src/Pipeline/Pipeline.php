@@ -2,11 +2,7 @@
 
 declare(strict_types=1);
 
-namespace VeloxRouter\Router\Pipeline;
-
-use VeloxRouter\Router\Contracts\MiddlewareInterface;
-use VeloxRouter\Router\Http\Request;
-use VeloxRouter\Router\Http\Response;
+namespace VeloxRouter\Pipeline;
 
 class Pipeline
 {
@@ -51,7 +47,6 @@ class Pipeline
     protected function prepareDestination(callable $destination): \Closure
     {
         return function (mixed $passable) use ($destination) {
-            // If passable is the [Request, Response] pair
             if (is_array($passable) && count($passable) === 2) {
                 [$request, $response] = $passable;
                 return $destination($request, $response);
@@ -68,7 +63,6 @@ class Pipeline
     {
         return function (callable $next, mixed $pipe) {
             return function (mixed $passable) use ($next, $pipe) {
-                // If passable is the [Request, Response] array
                 $request = $passable;
                 $response = null;
 
@@ -81,21 +75,20 @@ class Pipeline
                     $pipe = new $pipe();
                 }
 
-                // Create the 'next' closure adapted for (Request, Response, next) or (passable, next) signature
                 $destination = function ($req, $res = null) use ($next) {
                     $payload = ($res !== null) ? [$req, $res] : $req;
                     return $next($payload);
                 };
 
-                // If the pipe implements MiddlewareInterface or has a handle method
-                if ($pipe instanceof MiddlewareInterface || method_exists($pipe, 'handle')) {
+                // Verifica se a classe tem o método handle (duck typing)
+                if (is_object($pipe) && method_exists($pipe, 'handle')) {
                     if ($response !== null) {
                         return $pipe->handle($request, $response, $destination);
                     }
                     return $pipe->handle($passable, $destination);
                 }
 
-                // If it's just a generic Closure
+                // If it's just a generic Closure or callable
                 if (is_callable($pipe)) {
                     if ($response !== null) {
                         return $pipe($request, $response, $destination);
