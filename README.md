@@ -34,7 +34,7 @@ Create your main entry point inside the `public/` folder:
 declare(strict_types=1);
 
 // Load the Composer autoloader
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/vendor/autoload.php';
 
 use VeloxRouter\Router;
 
