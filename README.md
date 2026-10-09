@@ -2,6 +2,8 @@
 
 > A lightning-fast, lightweight HTTP routing engine built for modern PHP 8.2+.
 
+🔗 **[Access the Official Documentation](https://veloxrouter.github.io/docs/)**
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PHP Version](https://img.shields.io/badge/PHP-%5E8.2-indigo.svg)](https://php.net)
 
@@ -177,3 +179,5 @@ Results obtained from a simulated enterprise environment containing hundreds of 
 ## 📄 License
 
 The VeloxRouter package is open-sourced software licensed under the [MIT license](https://www.google.com/search?q=LICENSE).
+
+```
